@@ -1,0 +1,78 @@
+---
+title: "PML Project"
+author: "Amanda Pedersen"
+date: "February 25, 2016"
+output: html_document
+---
+#Introduction
+
+#### Fitness devices such as Fitbit and Jawbone Up, have become very popular for collecting large amounts of data related to physical activity. They are used to find patterns in fitness behavior or to improve health. Most commonly, these devices are used to quantify how much of an activity the wearer accomplishes. In this project, we will use data from accelerometers on the belt, forearm, arm, and dumbell of 6 indiviual participants. This data will then be used to predict the manner in which each exercise was completed.
+
+#Loading Dependencies
+```{r}
+library(caret)
+library(rpart)
+library(rpart.plot)
+library(randomForest)
+library(corrplot)
+```
+#Extract the Data
+```{r}
+download.file("https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv", destfile = "pml-training.csv")
+download.file("https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv", destfile = "pml-testing.csv")
+```
+#Read the Extracted Data
+```{r}
+trainData <- read.csv("pml-training.csv")
+testData <- read.csv("pml-testing.csv")
+dim(trainData)
+dim(testData)
+```
+####The dimensions show that the training data set contains 19,622 observations of 160 variables. The testing set contains 20 observations. The "classe" variable in the training set is the prediction outcome.
+
+#Clean the Data
+####In order to make the data usable, the missing values and unimportant variables must be removed. This will reduce the number of variables to 53. The number of observations remains the same.
+```{r}
+sum(complete.cases(trainData))
+trainData <- trainData[, colSums(is.na(trainData)) == 0]
+testData <- testData[, colSums(is.na(testData)) == 0]
+classe <- trainData$classe
+trainRemove <- grepl("^X|timestamp|window", names(trainData))
+trainData <- trainData[, !trainRemove]
+trainCleaned <- trainData[, sapply(trainData, is.numeric)]
+trainCleaned$classe <- classe
+testRemove <- grepl("^X|timestamp|window", names(testData))
+testData <- testData[, !testRemove]
+testCleaned <- testData[, sapply(testData, is.numeric)]
+```
+#Data Modeling
+####Now that the data has been cleaned, a validation set must be created. The training set will be split 70/30, so 30% of the observations will now become part of the validation set. Then a predictive model will be fit to the data. The Random Forest algorithm will be used for activity prediction. Finally, the model is applied to the original testing data set.
+
+```{r}
+set.seed(14)
+inTrain <- createDataPartition(y=trainCleaned$classe, p=0.70, list = FALSE)
+trainFinal <- trainCleaned[inTrain, ]
+validation <- trainCleaned[-inTrain, ]
+```
+```{r}
+controlRf <- trainControl(method = "cv", 5)
+modelRF <- train(classe ~ ., data=trainFinal, method="rf", trControl=controlRf, ntree=250)
+modelRF
+```
+```{r}
+result <- predict(modelRF, testCleaned[, -length(names(testCleaned))])
+result
+```
+#Appendix: Figures
+
+####1. Correlation Matrix Figure
+```{r, echo=FALSE}
+corrPlot <- cor(trainFinal[, -length(names(trainFinal))])
+corrplot(corrPlot, method = "color")
+```
+####2. Decision Tree Figure
+```{r, echo=FALSE}
+treeModel <- rpart(classe ~ ., data=trainFinal, method = "class")
+prp(treeModel)
+```
+
